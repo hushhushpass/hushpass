@@ -30,7 +30,12 @@ class Landing extends Component{
 
         const config = { headers:{'Content-Type':'multipart/form-data'}};
 
-        // console.log('axios',data);
+        console.log('axios',this.state.selectedFile.size);
+        if(this.state.selectedFile.size / (1000000) > 5) {
+            alert('This file exceeds our 5mb limit. ')
+            return false; 
+        }
+
         axios.post("/api/db/upload/", data, config)
         
         .then(res => { 
@@ -64,7 +69,6 @@ class Landing extends Component{
                 </form>
             </div>
         )
-
       
 
         if(this.state.fileId) {
