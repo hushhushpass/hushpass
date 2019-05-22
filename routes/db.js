@@ -111,18 +111,17 @@ router.post("/file/:documentCode", async function(req, res) {
 
     // valid document and password checks
     if (hash != document.hashedKey) return res.status(401).send("Bad password");
+    if (document.valid) return res.status(404).send("File no longer available");
     if (moment().isAfter(document.expirationDate)) {
       Document.findOneAndUpdate({ docId: docId }, { valid: false }, function(
-        err,
-        file
+        err
       ) {
         if (err) {
-          console.log("error occured when updating file:", docId);
+          console.log("Error occured when updating file:", docId);
         }
       });
       return res.status(404).send("File no longer available");
     }
-    if (document.valid) return res.status(404).send("File no longer available");
 
     const gridfs = await Grid(connection.db, mongoose.mongo);
 
