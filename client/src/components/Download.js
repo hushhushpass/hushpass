@@ -6,7 +6,7 @@ class Download extends Component {
     super(props);
     this.state = {
       document: {},
-      pw: ""
+      error: ""
     };
   }
 
@@ -14,14 +14,15 @@ class Download extends Component {
     const data = new FormData();
     data.append("password", document.getElementById("password").value);
     const config = {
-      responseType: "arraybuffer",
+      responseType: "",
       headers: { "Content-Type": "multipart/form-data", accept: "" }
     };
 
     axios
       .post("/api/db/file/" + this.props.match.params.fileId, data, config)
       .then(res => {
-        this.setState({ pw: "" });
+        console.log("res", res);
+        this.setState({ error: "" });
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement("a");
         link.href = url;
@@ -31,8 +32,8 @@ class Download extends Component {
         link.click();
       })
       .catch(err => {
-        console.error("Error:", err);
-        this.setState({ pw: "Bad Password" });
+        console.error(err);
+        this.setState({ error: err.response.data });
       });
   };
 
@@ -67,7 +68,7 @@ class Download extends Component {
             placeholder="password"
           />
           <p id="pw-error" className="alert alert-danger">
-            <font color="red">{this.state.pw}</font>
+            <font color="red">{this.state.error}</font>
           </p>
           <br />
           <br />

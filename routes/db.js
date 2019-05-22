@@ -109,7 +109,20 @@ router.post("/file/:documentCode", async function(req, res) {
       .update(fields.password)
       .digest("hex");
 
+    // valid document and password checks
     if (hash != document.hashedKey) return res.status(401).send("Bad password");
+    if (moment().isAfter(document.expirationDate)) {
+      Document.findOneAndUpdate({ docId: docId }, { valid: false }, function(
+        err,
+        file
+      ) {
+        if (err) {
+          console.log("error occured when updating file:", docId);
+        }
+      });
+      return res.status(404).send("File no longer available");
+    }
+    if (document.valid) return res.status(404).send("File no longer available");
 
     const gridfs = await Grid(connection.db, mongoose.mongo);
 
@@ -131,14 +144,27 @@ router.post("/file/:documentCode", async function(req, res) {
       const readstream = gridfs.createReadStream({ filename: docId });
       readstream.pipe(cipher).pipe(res);
 
-      readstream.on("error", function(err) {
-        res.end();
-      });
-
-      readstream.on("error", function(err) {
-        console.error("error");
-        res.end();
-      });
+      readstream
+        .on("end", function() {
+          console.log(
+            "stream end, updating doc downloads:",
+            document.downloadCount + 1
+          );
+          const validState =
+            document.downloadCount + 1 < dowcument.maxDownloads;
+          Document.findOneAndUpdate(
+            { docId: docId },
+            { downloadCount: document.downloadCount + 1, valid: validState },
+            function(err, doc) {
+              if (err) console.log(err);
+              else console.log("Succesfully saved");
+              if (!validState) console.log("File marked invalid");
+            }
+          );
+        })
+        .on("error", function(err) {
+          res.end();
+        });
     });
   });
 });
