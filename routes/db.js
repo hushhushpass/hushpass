@@ -35,9 +35,15 @@ router.post("/upload", function(req, res) {
         .update(process.env.SALT + fields.key)
         .digest("hex"),
       userID: req.userID,
-      maxDownloads: fields.downloads ? fields.downloads : 1,
+      maxDownloads: fields.downloads
+        ? fields.downloads > 100
+          ? 100
+          : fields.downloads
+        : 1,
       expirationDate: fields.expiration
-        ? moment().add(fields.expiration, "d")
+        ? fields.expiration > 7
+          ? moment().add(7, "d")
+          : moment().add(fields.expiration, "d")
         : moment().add(1, "d")
     }).save();
 

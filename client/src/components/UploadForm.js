@@ -75,6 +75,16 @@ class UploadForm extends Component {
         this.state.selectedFile.size / 1048576 +
         "b"
       );
+    } else if (document.getElementById("downloads").value > 100) {
+      this.setState({
+        error: "The number of downloads is limited to 100"
+      });
+      return "The number of downloads is limited to 100";
+    } else if (document.getElementById("expiration").value > 7) {
+      this.setState({
+        error: "The number of days available is limited to 7"
+      });
+      return "The number of days available is limited to 7";
     } else {
       this.setState({ error: null });
     }
