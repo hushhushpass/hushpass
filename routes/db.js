@@ -22,6 +22,19 @@ Grid.mongo = mongoose.mongo;
 
 const moment = require("moment");
 
+const getFileStatus = document => {
+  if (
+    document.maxDownloads <= document.downloadCount ||
+    document.maxDownloadsReached
+  ) {
+    return "DocLimit";
+  } else if (moment(document.expirationDate) <= moment()) {
+    return "Expired";
+  }
+
+  return "";
+};
+
 router.post("/upload", function(req, res) {
   const form = new formidable.IncomingForm();
   form.parse(req, async function(err, fields, files) {
@@ -88,16 +101,26 @@ router.post("/upload", function(req, res) {
 
 router.get("/:documentCode", async function(req, res) {
   const docId = req.params.documentCode;
+
   const document = await Document.findOne({ docId: docId }, function(err, doc) {
     if (err) {
       console.error(err);
-      res.status(404).send("Error getting Document from Database");
+      res.status(404).send({
+        fileValidity: false
+      });
     }
   });
+
+  const fileStatus = getFileStatus(document);
+
   res.status(200).send({
     fileName: document.fileName,
     fileType: document.fileType,
-    expirationDate: moment(document.expirationDate).format("dddd, MMMM Do YYYY")
+    expirationDate: moment(document.expirationDate).format(
+      "dddd, MMMM Do YYYY"
+    ),
+    fileStatus,
+    fileValidity: true
   });
 });
 
@@ -113,18 +136,7 @@ router.post("/file/:documentCode", async function(req, res) {
     ) {
       if (err) return console.error(err);
     });
-    const docStatus = (document => {
-      if (
-        document.maxDownloads <= document.downloadCount ||
-        document.maxDownloadsReached
-      ) {
-        return "DocLimit";
-      } else if (moment(document.expirationDate) <= moment()) {
-        return "Expired";
-      }
-
-      return "";
-    })(document);
+    const docStatus = getFileStatus(document);
 
     if (docStatus === "Expired") {
       return res.status(421).send({

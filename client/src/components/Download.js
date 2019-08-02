@@ -61,7 +61,18 @@ class Download extends Component {
       const doc = await (await fetch(
         "/api/db/" + this.props.match.params.fileId
       )).json();
-      this.setState({ document: doc });
+
+      if (doc.fileStatus === "DocLimit" || doc.fileStatus === "Expired") {
+        this.setState({
+          document: doc,
+          fileStatusMessage: "Your File is Expired"
+        });
+      } else {
+        this.setState({
+          document: doc,
+          fileStatusMessage: "Your File is Ready"
+        });
+      }
     });
   }
 
@@ -69,7 +80,7 @@ class Download extends Component {
     const successTemplate = (
       <div>
         <h1 className="center header-description header-text">
-          Your File Is Ready
+          {this.state.fileStatusMessage}
         </h1>
         <ul className="flex-container">
           <li className="flex-item">
@@ -121,7 +132,17 @@ class Download extends Component {
       </div>
     );
 
-    return this.state.document.fileName ? successTemplate : failTemplate;
+    const returnTemplate = () => {
+      if (this.state.document.fileValidity === undefined) {
+        return <p />;
+      } else if (this.state.document.fileValidity) {
+        return successTemplate;
+      } else {
+        return failTemplate;
+      }
+    };
+
+    return returnTemplate();
   };
 }
 
