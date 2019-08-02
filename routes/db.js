@@ -105,14 +105,6 @@ router.get("/:documentCode", async function(req, res) {
   const document = await Document.findOne({ docId: docId }, function(err, doc) {
     if (err) {
       console.trace(err);
-      res.status(200).send({
-        fileName: "",
-        fileType: "",
-        expirationDate: "",
-        fileStatus: "",
-        fileValidity: false
-      });
-      res.end();
     }
   });
 
