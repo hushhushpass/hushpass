@@ -154,20 +154,6 @@ router.post("/file/:documentCode", async function(req, res) {
           "The maximum number of downloads has been reached for this document."
       });
     } else {
-      Document.findOneAndUpdate(
-        {
-          docId
-        },
-        {
-          $set: {
-            downloadCount: document.downloadCount + 1
-          }
-        },
-        { new: true },
-        result => {
-          // console.log(result);
-        }
-      );
     }
 
     const hash = crypto
@@ -204,7 +190,22 @@ router.post("/file/:documentCode", async function(req, res) {
       const readstream = gridfs.createReadStream({ filename: docId });
       readstream.pipe(cipher).pipe(res);
 
-      readstream.on("error", function(err) {
+      readstream.on("end", function() {
+        Document.findOneAndUpdate(
+          {
+            docId
+          },
+          {
+            $set: {
+              downloadCount: document.downloadCount + 1
+            }
+          },
+          { new: true },
+          result => {
+            // console.log(result);
+          }
+        );
+
         res.end();
       });
 

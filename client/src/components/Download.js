@@ -48,6 +48,10 @@ class Download extends Component {
           this.setState({
             error: "The document has exceeded its expiration date."
           });
+        } else if (errStatus === 401) {
+          this.setState({
+            error: "The password entered is incorrect."
+          });
         }
       });
   };
