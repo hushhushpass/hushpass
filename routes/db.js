@@ -104,12 +104,28 @@ router.get("/:documentCode", async function(req, res) {
 
   const document = await Document.findOne({ docId: docId }, function(err, doc) {
     if (err) {
-      console.error(err);
-      res.status(404).send({
+      console.trace(err);
+      res.status(200).send({
+        fileName: "",
+        fileType: "",
+        expirationDate: "",
+        fileStatus: "",
         fileValidity: false
       });
+      res.end();
     }
   });
+
+  if (document === null) {
+    res.status(404).send({
+      fileName: "",
+      fileType: "",
+      expirationDate: "",
+      fileStatus: "",
+      fileValidity: false
+    });
+    res.end();
+  }
 
   const fileStatus = getFileStatus(document);
 
@@ -180,9 +196,9 @@ router.post("/file/:documentCode", async function(req, res) {
     gridfs.findOne({ filename: docId }, function(err, file) {
       if (err) return res.status(400).send(err);
       else if (!file) {
-        return res
-          .status(404)
-          .send("Error on the database looking for the file.");
+        return res.status(404).send({
+          fileValidity: false
+        });
       }
 
       res.set("Content-Type", document.fileType);
