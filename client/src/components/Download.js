@@ -121,6 +121,31 @@ class Download extends Component {
       </div>
     );
 
+    const expiredTemplate = (
+      <div>
+        <h1 className="center header-description header-text">
+          {/* {this.state.fileStatusMessage} */}
+          Your File is Expired or Has Reached Maximun Downloads
+        </h1>
+        <ul className="flex-container">
+          <li className="flex-item">
+            <div>
+              <div className="note ">
+                <p className="center">{this.state.document.fileName}</p>
+                <p>Type: {this.state.document.fileType}</p>
+                <p>Id: {this.props.match.params.fileId}</p>
+                <p>Expires: {this.state.document.expirationDate}</p>
+              </div>
+              <p className="center">
+                This file is no longer available for download
+              </p>
+            </div>
+          </li>
+          <li className="flex-item">{Introduction}</li>
+        </ul>
+      </div>
+    );
+
     const failTemplate = (
       <div>
         <div>
@@ -135,8 +160,16 @@ class Download extends Component {
     const returnTemplate = () => {
       if (this.state.document.fileValidity === undefined) {
         return <p />;
-      } else if (this.state.document.fileValidity) {
+      } else if (
+        this.state.document.fileValidity &&
+        this.state.document.valid
+      ) {
         return successTemplate;
+      } else if (
+        this.state.document.fileValidity &&
+        !this.state.document.valid
+      ) {
+        return expiredTemplate;
       } else {
         return failTemplate;
       }
