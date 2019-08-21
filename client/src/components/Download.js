@@ -137,7 +137,7 @@ class Download extends Component {
             <div>
                 <h1 className="center header-description header-text">
                     {/* {this.state.fileStatusMessage} */}
-                    Your File is Expired or Has Reached its Download Limit
+                    Your File Has Expired or Reached its Download Limit
                 </h1>
                 <ul className="flex-container">
                     <li className="flex-item">
