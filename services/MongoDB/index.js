@@ -21,13 +21,13 @@ const moment = require("moment");
 async function saveNewDocumentToDB(name, type, key, downloads, expiration) {
     const docId = uuidv4();
 
-    if (downloads || downloads < 1) {
+    if (!downloads || downloads < 1) {
         downloads = 1;
     } else if (downloads > 100) {
         downloads = 100;
     }
 
-    if (expiration || expiration < 1) {
+    if (!expiration || expiration < 1) {
         expiration = 1;
     } else if (expiration > 14) {
         expiration = 14;
