@@ -20,6 +20,19 @@ const moment = require("moment");
 
 async function saveNewDocumentToDB(name, type, key, downloads, expiration) {
     const docId = uuidv4();
+
+    if (downloads || downloads < 1) {
+        downloads = 1;
+    } else if (downloads > 100) {
+        downloads = 100;
+    }
+
+    if (expiration || expiration < 1) {
+        expiration = 1;
+    } else if (expiration > 14) {
+        expiration = 14;
+    }
+
     await new Document({
         docId: docId,
         fileName: name,
@@ -28,10 +41,8 @@ async function saveNewDocumentToDB(name, type, key, downloads, expiration) {
             .createHash("sha256")
             .update(process.env.SALT + key)
             .digest("hex"),
-        maxDownloads: downloads ? downloads : 1,
-        expirationDate: expiration ?
-            moment().add(expiration, "d") :
-            moment().add(1, "d")
+        maxDownloads: downloads,
+        expirationDate: moment().add(expiration, "d")
     }).save();
 
     return docId;
