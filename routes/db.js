@@ -1,12 +1,13 @@
 const express = require("express");
 const router = express.Router();
+const mdb = require("../services/MongoDB/index.js");
 
 const mongoose = require("mongoose");
 const Grid = require("gridfs-stream");
 eval(
     `Grid.prototype.findOne = ${Grid.prototype.findOne
-        .toString()
-        .replace("nextObject", "next")}`
+    .toString()
+    .replace("nextObject", "next")}`
 );
 
 const fs = require("fs");
@@ -23,10 +24,7 @@ Grid.mongo = mongoose.mongo;
 const moment = require("moment");
 
 const getFileStatus = document => {
-    if (
-        document.maxDownloads <= document.downloadCount ||
-        document.maxDownloadsReached
-    ) {
+    if (document.maxDownloads <= document.downloadCount) {
         return "DocLimit";
     } else if (moment(document.expirationDate) <= moment()) {
         return "Expired";
@@ -44,29 +42,21 @@ router.post("/upload", function(req, res) {
             res.status(200).send("File is too large");
         }
 
-        const docId = uuidv4();
-        const newDoc = await new Document({
-            docId: docId,
-            fileName: files["file"].name,
-            fileType: files["file"].type,
-            hashedKey: crypto
-                .createHash("sha256")
-                .update(process.env.SALT + fields.key)
-                .digest("hex"),
-            userID: req.userID,
-            maxDownloads: fields.downloads ? fields.downloads : 1,
-            expirationDate: fields.expiration
-                ? moment().add(fields.expiration, "d")
-                : moment().add(1, "d")
-        }).save();
+        const docId = await mdb.saveNewDocumentToDB(
+            files["file"].name,
+            files["file"].type,
+            fields.key,
+            fields.downloads,
+            fields.expiration
+        );
 
         let realKey = crypto.scryptSync(fields.key, process.env.SALT, 32);
         const cipher = crypto.createCipheriv(
             "aes-256-cbc",
             realKey,
             Buffer.from(process.env.SALT, "ascii")
-                .toString("hex")
-                .slice(0, 16)
+            .toString("hex")
+            .slice(0, 16)
         );
         const input = fs.createReadStream(files["file"].path);
 
@@ -77,24 +67,17 @@ router.post("/upload", function(req, res) {
 
         //FILE HAS BEEN SUCCESSFULLY ENCRYPTED
         output.on("finish", function() {
-            // console.log("Encrypted file written to disk!");
-            const gridfs = Grid(connection.db, mongoose.mongo);
-
-            const writestream = gridfs.createWriteStream({
-                filename: docId
-            });
-
-            fs.createReadStream(encryptedFilePath).pipe(writestream);
-
-            writestream.on("close", function(file) {
-                console.log("file added to db");
-            });
-            writestream.on("error", function(err) {
-                console.error("error");
+            const status = mdb.saveEncryptedFileToDB(
+                docId,
+                fs.createReadStream(encryptedFilePath)
+            );
+            if (status) {
+                res.status(200).send(docId);
+                // console.log("file added to db");
+            } else {
                 res.status(200).send("Could not add file to db");
-            });
-
-            return res.status(200).send(docId);
+                console.log("error, failed to upload file");
+            }
         });
     });
 });
@@ -102,10 +85,7 @@ router.post("/upload", function(req, res) {
 router.get("/:documentCode", async function(req, res) {
     const docId = req.params.documentCode;
 
-    const document = await Document.findOne({ docId: docId }, function(
-        err,
-        doc
-    ) {
+    const document = await Document.findOne({ docId: docId }, function(err, doc) {
         if (err) {
             console.trace(err);
         }
@@ -116,8 +96,10 @@ router.get("/:documentCode", async function(req, res) {
             fileName: "",
             fileType: "",
             expirationDate: "",
-            fileStatus: ""
+            fileStatus: "",
+            fileValidity: false
         });
+
         res.end();
     }
 
@@ -129,7 +111,9 @@ router.get("/:documentCode", async function(req, res) {
         expirationDate: moment(document.expirationDate).format(
             "dddd, MMMM Do YYYY"
         ),
-        fileStatus
+        fileStatus,
+        valid: document.valid,
+        fileValidity: true
     });
 });
 
@@ -149,32 +133,14 @@ router.post("/file/:documentCode", async function(req, res) {
 
         if (docStatus === "Expired") {
             return res.status(421).send({
-                error: "Document has been expired."
+                error: "The document has expired."
             });
         }
 
         if (docStatus === "DocLimit") {
-            if (!document.maxDownloadsReached) {
-                Document.findOneAndUpdate(
-                    {
-                        docId
-                    },
-                    {
-                        $set: {
-                            maxDownloadsReached: true
-                        }
-                    },
-                    { new: true },
-                    result => {
-                        // console.log(result);
-                    }
-                );
-            }
             return res.status(411).send({
-                error:
-                    "The maximum number of downloads has been reached for this document."
+                error: "The maximum number of downloads has been reached for this document."
             });
-        } else {
         }
 
         const hash = crypto
@@ -182,62 +148,36 @@ router.post("/file/:documentCode", async function(req, res) {
             .update(process.env.SALT + fields.password)
             .digest("hex");
 
-        if (hash != document.hashedKey)
-            return res.status(401).send("Bad password");
+        if (hash != document.hashedKey) return res.status(401).send("Bad password");
 
-        const gridfs = await Grid(connection.db, mongoose.mongo);
+        res.set("Content-Type", document.fileType);
+        res.set(
+            "Content-Disposition",
+            'attachment; filename="' + document.fileName + '"'
+        );
 
-        gridfs.findOne({ filename: docId }, function(err, file) {
-            if (err) return res.status(400).send(err);
-            else if (!file) {
-                return res.status(404).send({
-                    fileValidity: false
-                });
-            }
+        let realKey = crypto.scryptSync(fields.password, process.env.SALT, 32);
+        const cipher = crypto.createDecipheriv(
+            "aes-256-cbc",
+            realKey,
+            Buffer.from(process.env.SALT, "ascii")
+            .toString("hex")
+            .slice(0, 16)
+        );
+        const encryptedReadStream = await mdb.readStreamEncryptedFileFromDB(docId);
 
-            res.set("Content-Type", document.fileType);
-            res.set(
-                "Content-Disposition",
-                'attachment; filename="' + document.fileName + '"'
-            );
+        await encryptedReadStream.pipe(cipher).pipe(res);
 
-            let realKey = crypto.scryptSync(
-                fields.password,
-                process.env.SALT,
-                32
-            );
-            const cipher = crypto.createDecipheriv(
-                "aes-256-cbc",
-                realKey,
-                Buffer.from(process.env.SALT, "ascii")
-                    .toString("hex")
-                    .slice(0, 16)
-            );
-            const readstream = gridfs.createReadStream({ filename: docId });
-            readstream.pipe(cipher).pipe(res);
+        encryptedReadStream.once("end", function() {
+            mdb.updateDocumentAfterDownload(docId);
+            // res.end(); // causes error, res ends automatically
+        });
 
-            readstream.on("end", function() {
-                Document.findOneAndUpdate(
-                    {
-                        docId
-                    },
-                    {
-                        $set: {
-                            downloadCount: document.downloadCount + 1
-                        }
-                    },
-                    { new: true },
-                    result => {
-                        // console.log(result);
-                    }
-                );
-
-                res.end();
-            });
-
-            readstream.on("error", function(err) {
-                console.error("error");
-                res.end();
+        encryptedReadStream.once("error", function(err) {
+            console.error("Error durring encryptedReadStream:", err);
+            return res.status(400).send({
+                fileValidity: false,
+                error: "An error occured or the encrypted file could not be found"
             });
         });
     });
